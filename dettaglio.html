@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sommario tecnico ETF</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{--ink:#1b2430;--mut:#5d6773;--line:#d9dee4;--acc:#0b5c8a;--up:#17734a;--dn:#b3261e;--ne:#7a6200;--upbg:#e6f4ec;--dnbg:#fbe9e7;--nebg:#f6f0d6}
+*{box-sizing:border-box}body{margin:0;background:#fff;color:var(--ink);font:15px/1.5 "Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+main{max-width:960px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:22px;margin:0}h2{font-size:16px;margin:28px 0 8px}.sub{color:var(--mut);font-size:13px}
+.top{display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;align-items:flex-end;border-bottom:2px solid var(--ink);padding-bottom:12px}
+.px{font-size:30px;font-weight:700;font-variant-numeric:tabular-nums}.stats{display:flex;gap:20px;flex-wrap:wrap;margin-top:8px;font-size:13px;color:var(--mut)}.stats b{color:var(--ink);font-variant-numeric:tabular-nums}
+.bar{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+button,.btn{font:inherit;font-size:13px;padding:6px 12px;border:1px solid var(--acc);background:#fff;color:var(--acc);border-radius:4px;cursor:pointer;text-decoration:none}
+button:hover,.btn:hover,.tab.on{background:var(--acc);color:#fff}button:focus-visible,.btn:focus-visible{outline:3px solid #8cc4e6;outline-offset:2px}
+.tabs{display:flex;gap:6px;margin-top:18px}.tab{padding:8px 18px}
+.big{display:inline-block;padding:6px 14px;border-radius:4px;font-weight:700;font-size:18px}
+.Compra,.Compra\ Adesso{background:var(--upbg);color:var(--up)}.Vendi,.Vendi\ Adesso{background:var(--dnbg);color:var(--dn)}.Neutrale{background:var(--nebg);color:var(--ne)}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right}th:first-child,td:first-child{text-align:left}th{font-weight:600;color:var(--mut);font-size:13px}
+td.a{font-weight:600}td.Compra,td.Compra\ Adesso{color:var(--up);background:none}td.Vendi,td.Vendi\ Adesso{color:var(--dn);background:none}td.Neutrale{color:var(--ne);background:none}
+.box{border:1px solid var(--line);border-radius:4px;padding:10px 14px;margin-top:10px;font-size:14px}.wrap{overflow-x:auto}
+.warn{color:var(--dn)}footer{margin-top:32px;font-size:12px;color:var(--mut)}
+</style></head><body><main id="app"><p>Caricamento…</p></main>
+<script>
+const q=new URLSearchParams(location.search),T=q.get('y')||'ISPA.DE',F='data/tech/'+T.replace(/\./g,'_')+'.json';
+const TF={D:'Giornaliero',W:'Settimanale',M:'Mensile'},TV={MI:'MIL',DE:'XETR',PA:'EURONEXT',L:'LSE'};
+const n=(v,d=2)=>v==null?'–':Number(v).toLocaleString('it-IT',{minimumFractionDigits:d,maximumFractionDigits:d});
+const cl=s=>s||'';let D,cur='D';
+fetch(F+'?t='+Date.now()).then(r=>{if(!r.ok)throw 0;return r.json()}).then(j=>{D=j;draw()}).catch(()=>{
+ document.getElementById('app').innerHTML='<h1>Dati non disponibili per '+T+'</h1><p class="warn">Il file '+F+' non esiste ancora. Lancia il workflow “Sommario tecnico” da GitHub → Actions → Run workflow, con il ticker '+T+'.</p>'});
+function draw(){const t=D.tf[cur],ex=D.ticker.split('.').pop(),sym=D.ticker.split('.')[0],up=D.var>=0;
+ document.title=D.nome+' – sommario tecnico';
+ let h=`<div class="top"><div><h1>${D.nome}</h1><div class="sub">${D.ticker} · ${D.borsa} · ${D.valuta}${D.isin?' · '+D.isin:''}</div>
+ <div class="stats"><span>Min–Max gg <b>${n(D.min_gg)} – ${n(D.max_gg)}</b></span><span>52 settimane <b>${n(D.min_52)} – ${n(D.max_52)}</b></span></div></div>
+ <div><div class="px">${n(D.prezzo)}</div><div class="${up?'Compra':'Vendi'}" style="padding:2px 8px;border-radius:4px;display:inline-block">${up?'+':''}${n(D.var)} (${up?'+':''}${n(D.var_pct)}%)</div></div></div>
+ <div class="bar"><button onclick="xl()">Scarica Excel</button><button onclick="pdf()">Regole PDF</button>
+ <a class="btn" target="_blank" rel="noopener" href="https://it.tradingview.com/chart/?symbol=${TV[ex]||ex}%3A${sym}">TradingView</a>
+ <a class="btn" target="_blank" rel="noopener" href="https://finance.yahoo.com/quote/${D.ticker}">Yahoo Finance</a>
+ ${ex==='MI'?`<a class="btn" target="_blank" rel="noopener" href="https://giorgiogoldoni.github.io/core/dettaglio.html?y=${D.ticker}">Grafico completo</a>`:''}</div>
+ <div class="tabs">${Object.keys(TF).map(k=>`<button class="tab ${k===cur?'on':''}" onclick="cur='${k}';draw()">${TF[k]}</button>`).join('')}</div>`;
+ if(!t){h+=`<div class="box warn">Storia insufficiente per il timeframe ${TF[cur]}: servono almeno 30 barre.</div>`}
+ else{h+=`<h2>Riassunto ${TF[cur]}</h2><span class="big ${cl(t.riassunto)}">${t.riassunto||'–'}</span> <span class="sub">saldo ${n(t.saldo,1)}% · indicatori: ${t.ind_riassunto||'–'} · medie mobili: ${t.ma_riassunto||'–'} · ultima barra ${t.ultima}${cur!=='D'?' (può essere in corso)':''}</span>
+ <h2>Indicatori tecnici</h2><div class="wrap"><table><tr><th>Nome</th><th>Valore</th><th>Azione</th><th>Nota</th></tr>${t.indicatori.map(i=>`<tr><td>${i.nome}</td><td>${n(i.valore,i.nome.startsWith('MACD')||i.nome.startsWith('ATR')||i.nome.startsWith('Bull')?4:2)}</td><td class="a ${cl(i.azione)}">${i.azione||'non vota'}</td><td>${i.nota||''}</td></tr>`).join('')}</table></div>
+ <div class="box"><b>MACD</b> ${n(t.macd.macd,4)} · segnale ${n(t.macd.segnale,4)} · istogramma ${n(t.macd.istogramma,4)}<br>${t.macd.incrocio?`Ultimo incrocio ${t.macd.incrocio.direzione}, ${t.macd.incrocio.barre_fa} barre fa${t.macd.incrocio.recente?' (<b>recente</b>)':''}`:'Nessun incrocio nelle ultime 40 barre'}</div>
+ <h2>Medie mobili</h2><div class="wrap"><table><tr><th>Periodo</th><th>Semplice</th><th>Azione</th><th>Esponenziale</th><th>Azione</th></tr>${t.medie.map(m=>`<tr><td>MA${m.periodo}</td><td>${n(m.sma,3)}</td><td class="a ${cl(m.v_sma)}">${m.v_sma||'–'}</td><td>${n(m.ema,3)}</td><td class="a ${cl(m.v_ema)}">${m.v_ema||'–'}</td></tr>`).join('')}</table></div>`}
+ h+=`<h2>Punti di pivot (giornaliero)</h2><div class="wrap"><table><tr><th>Nome</th><th>S3</th><th>S2</th><th>S1</th><th>Pivot</th><th>R1</th><th>R2</th><th>R3</th></tr>${Object.entries(D.pivot).map(([k,v])=>`<tr><td>${k}</td>${v.map(x=>`<td>${n(x)}</td>`).join('')}</tr>`).join('')}</table></div>
+ <footer>Dati aggiornati al ${D.generato}. Segnali calcolati con regole proprie (vedi “Regole PDF”): non coincidono con quelli di Investing.com e hanno valore indicativo, non costituiscono consulenza.</footer>`;
+ document.getElementById('app').innerHTML=h}
+function xl(){const wb=XLSX.utils.book_new();
+ for(const k of Object.keys(TF)){const t=D.tf[k];if(!t)continue;
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet([...t.indicatori.map(i=>({Nome:i.nome,Valore:i.valore,Azione:i.azione||'non vota',Nota:i.nota||''})),...t.medie.flatMap(m=>[{Nome:'SMA'+m.periodo,Valore:m.sma,Azione:m.v_sma||''},{Nome:'EMA'+m.periodo,Valore:m.ema,Azione:m.v_ema||''}]),{Nome:'RIASSUNTO',Valore:t.saldo,Azione:t.riassunto||''}]),TF[k])}
+ XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Nome','S3','S2','S1','Pivot','R1','R2','R3'],...Object.entries(D.pivot).map(([k,v])=>[k,...v])]),'Pivot');
+ XLSX.writeFile(wb,'sommario_tecnico_'+D.ticker.replace('.','_')+'.xlsx')}
+async function pdf(){const r=await (await fetch('regole.json?t='+Date.now())).json(),p=new jspdf.jsPDF(),W=180;let y=20;
+ p.setFontSize(15);p.text('Regole del sommario tecnico (v'+r.versione+', '+r.aggiornato+')',15,y);y+=10;p.setFontSize(10);
+ for(const [a,b] of r.regole){const L=p.splitTextToSize(b,W);if(y+6+L.length*5>280){p.addPage();y=20}
+  p.setFont(undefined,'bold');p.text(a,15,y);p.setFont(undefined,'normal');y+=5;p.text(L,15,y);y+=L.length*5+4}
+ p.save('regole_sommario_tecnico.pdf')}
+</script></body></html>
