@@ -1,0 +1,18 @@
+{"versione":"1.0","aggiornato":"2026-10-07",
+"soglie":{"rsi":[45,55],"stoch":[45,55],"adx":25,"macd_recente":3,"aggregato":[20,60]},
+"regole":[
+["RSI(14)","Compra se >= 55, Vendi se <= 45, altrimenti Neutrale. Etichetta ipervenduto < 30, ipercomprato > 70 (non vota)."],
+["STOCH(9,6)","%K > 55 Compra, < 45 Vendi, altrimenti Neutrale. Etichetta sotto 20 / sopra 80."],
+["STOCHRSI(14)","Come STOCH, calcolato sull'RSI(14)."],
+["MACD(12,26,9)","Compra se MACD > linea segnale (media a 9 periodi del MACD), Vendi se inferiore. Incrocio 'recente' se avvenuto entro 3 barre, con indicazione di quante."],
+["ADX(14)","Se ADX > 25: Compra con +DI > -DI, Vendi con +DI < -DI. Se ADX <= 25: Neutrale."],
+["CCI(14)","Compra se > 0, Vendi se < 0. Etichetta oltre +/-100."],
+["ROC(12)","Compra se > 0, Vendi se < 0."],
+["Ultimate Oscillator","Compra se > 50, Vendi se < 50. Etichetta sotto 30 / sopra 70."],
+["Bull/Bear Power(13)","Regola di Elder: Compra se EMA13 sale, Bear Power negativo e in risalita. Vendi se EMA13 scende, Bull Power positivo e in calo. Altrimenti Neutrale."],
+["Williams %R(14)","Solo etichetta: ipervenduto < -80, ipercomprato > -20. Non vota."],
+["ATR(14)","Solo volatilita'. Non vota."],
+["Medie mobili","MA5, 10, 20, 50, 100, 200, semplici ed esponenziali: Compra se prezzo sopra la media, Vendi se sotto."],
+["Aggregato","Saldo = (Compra - Vendi) / indicatori votanti. >= +60% Compra Adesso; +20% / +60% Compra; tra -20% e +20% Neutrale; -60% / -20% Vendi; <= -60% Vendi Adesso."],
+["Timeframe","Giornaliero, Settimanale, Mensile (da dati giornalieri; l'ultima barra puo' essere in corso). Indicatori senza storia sufficiente restano vuoti."],
+["Avvertenza","Regole proprie, non quelle di Investing.com: i valori sono vicini ma non identici. Gli indicatori sono correlati: il consenso e' indicativo, non indipendente."]]}
