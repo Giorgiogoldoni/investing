@@ -58,7 +58,7 @@ def calc(d):
     vi = [x["azione"] for x in ind]; vm = [m[q] for m in ma for q in ("v_sma", "v_ema")]
     (ri, si), (rm, sm_), (rt, st) = agg(vi), agg(vm), agg(vi + vm)
     return {"barre": len(d), "ultima": str(d.index[-1].date()), "riassunto": rt, "saldo": st, "ind_riassunto": ri, "ind_saldo": si,
-            "ma_riassunto": rm, "ma_saldo": sm_, "indicatori": ind, "medie": ma,
+            "ipercomprati": sum(i["nota"] == "Ipercomprato" for i in ind), "ipervenduti": sum(i["nota"] == "Ipervenduto" for i in ind), "ma_riassunto": rm, "ma_saldo": sm_, "indicatori": ind, "medie": ma,
             "macd": {"macd": f(L(mac)), "segnale": f(L(sig)), "istogramma": f(L(diff)), "incrocio": cross}}
 def lv(p, h, l, c, r):  # [S3,S2,S1,P,R1,R2,R3] forma classica
     return [l - 2 * (h - p), p - r, 2 * p - h, p, 2 * p - l, p + r, h + 2 * (p - l)]
@@ -77,12 +77,24 @@ def serie(d, n=300):
     rsi = 100 - 100 / (1 + wil(up.clip(lower=0), 14) / wil((-up).clip(lower=0), 14)); r = lambda x: [f(v, 4) for v in x.iloc[-n:]]
     return {"t": [str(i.date()) for i in d.index[-n:]], "o": r(d.Open), "h": r(d.High), "l": r(d.Low), "c": r(c), "ma20": r(c.rolling(20).mean()), "ma50": r(c.rolling(50).mean()),
             "ma200": r(c.rolling(200).mean()), "macd": r(mac), "sig": r(sig), "hist": r(mac - sig), "rsi": r(rsi)}
+def recent(t, d):
+    now = dt.datetime.now(dt.timezone.utc); a = now.date() if now.hour >= 16 else now.date() - dt.timedelta(days=1)
+    while a.weekday() > 4: a -= dt.timedelta(days=1)
+    if d.index[-1].date() >= a: return d, True
+    try:
+        x = yf.download(t, period="1mo", interval="1d", auto_adjust=False, progress=False)
+        if isinstance(x.columns, pd.MultiIndex): x.columns = x.columns.get_level_values(0)
+        x = x.dropna(subset=["Close"]); x.index = pd.to_datetime(x.index).tz_localize(None)
+        n = x[x.index > d.index[-1]][["Open", "High", "Low", "Close"]]
+        if len(n): d = pd.concat([d[["Open", "High", "Low", "Close"]], n])
+    except Exception as e: print("FALLBACK", t, e)
+    ok = d.index[-1].date() >= a; print("OK-FALLBACK" if ok else "LAG", t, d.index[-1].date(), "attesa", a); return d, ok
 def mkindex():
     rows = []
     for p in sorted(glob.glob("data/tech/*.json")):
         if p.endswith("index.json"): continue
         d = json.load(open(p)); g = lambda k: (d["tf"].get(k) or {})
-        rows.append({"ticker": d["ticker"], "nome": d["nome"], "borsa": d["borsa"], "prezzo": d["prezzo"], "var_pct": d["var_pct"], "ultima": g("D").get("ultima"),
+        rows.append({"ticker": d["ticker"], "nome": d["nome"], "borsa": d["borsa"], "prezzo": d["prezzo"], "var_pct": d["var_pct"], "ultima": g("D").get("ultima"), "agg": d.get("aggiornato"),
                      **{k: [g(k).get("riassunto"), g(k).get("saldo")] for k in "DWM"}})
     json.dump({"generato": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"), "righe": rows}, open("data/tech/index.json", "w"), ensure_ascii=False, allow_nan=False)
 def main(ts):
@@ -91,8 +103,8 @@ def main(ts):
     for t in ts:
         d = yf.Ticker(t).history(period="10y", interval="1d", auto_adjust=False).dropna(subset=["Close"])
         if len(d) < 60: print("SKIP", t, len(d)); continue
-        d.index = d.index.tz_localize(None); last, prev, y = d.iloc[-1], d.iloc[-2], d.iloc[-252:]
-        out = {"ticker": t, "isin": U.get(t, {}).get("isin"), "nome": U.get(t, {}).get("name", t), "valuta": "EUR",
+        d.index = d.index.tz_localize(None); d, agg_ok = recent(t, d); last, prev, y = d.iloc[-1], d.iloc[-2], d.iloc[-252:]
+        out = {"ticker": t, "isin": U.get(t, {}).get("isin"), "nome": U.get(t, {}).get("name", t), "valuta": "EUR", "aggiornato": agg_ok,
                "borsa": "Borsa Italiana" if t.endswith(".MI") else "Xetra", "generato": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
                "prezzo": f(last.Close, 3), "var": f(last.Close - prev.Close, 3), "var_pct": f((last.Close / prev.Close - 1) * 100, 2),
                "min_gg": f(last.Low, 3), "max_gg": f(last.High, 3), "min_52": f(y.Low.min(), 3), "max_52": f(y.High.max(), 3),
