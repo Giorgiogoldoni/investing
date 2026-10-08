@@ -1,4 +1,4 @@
-import sys, json, os, datetime as dt, urllib.request
+import sys, json, os, time, glob, datetime as dt, urllib.request
 import numpy as np, pandas as pd, yfinance as yf
 R = json.load(open("regole.json"))["soglie"]
 def wil(s, n): return s.ewm(alpha=1/n, adjust=False, min_periods=n).mean()
@@ -69,9 +69,24 @@ def pivots(d):
            "Camarilla": [c - r * 1.1 / 4, c - r * 1.1 / 6, c - r * 1.1 / 12, p, c + r * 1.1 / 12, c + r * 1.1 / 6, c + r * 1.1 / 4],
            "Woodie": lv(w, h, l, c, r), "DeMark": [None, None, x / 2 - h, x / 4, x / 2 - l, None, None]}
     return {k: [f(v, 3) for v in vals] for k, vals in out.items()}
+def loadU():
+    try: return {i["ticker_yf"]: i for i in json.load(urllib.request.urlopen("https://raw.githubusercontent.com/Giorgiogoldoni/core/main/data/tickers_universe.json", timeout=30))["instruments"]}
+    except Exception: return {}
+def serie(d, n=300):
+    c = d.Close; up = c.diff(); mac = c.ewm(span=12, adjust=False).mean() - c.ewm(span=26, adjust=False).mean(); sig = mac.ewm(span=9, adjust=False).mean()
+    rsi = 100 - 100 / (1 + wil(up.clip(lower=0), 14) / wil((-up).clip(lower=0), 14)); r = lambda x: [f(v, 4) for v in x.iloc[-n:]]
+    return {"t": [str(i.date()) for i in d.index[-n:]], "o": r(d.Open), "h": r(d.High), "l": r(d.Low), "c": r(c), "ma20": r(c.rolling(20).mean()), "ma50": r(c.rolling(50).mean()),
+            "ma200": r(c.rolling(200).mean()), "macd": r(mac), "sig": r(sig), "hist": r(mac - sig), "rsi": r(rsi)}
+def mkindex():
+    rows = []
+    for p in sorted(glob.glob("data/tech/*.json")):
+        if p.endswith("index.json"): continue
+        d = json.load(open(p)); g = lambda k: (d["tf"].get(k) or {})
+        rows.append({"ticker": d["ticker"], "nome": d["nome"], "borsa": d["borsa"], "prezzo": d["prezzo"], "var_pct": d["var_pct"], "ultima": g("D").get("ultima"),
+                     **{k: [g(k).get("riassunto"), g(k).get("saldo")] for k in "DWM"}})
+    json.dump({"generato": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"), "righe": rows}, open("data/tech/index.json", "w"), ensure_ascii=False, allow_nan=False)
 def main(ts):
-    try: U = {i["ticker_yf"]: i for i in json.load(urllib.request.urlopen("https://raw.githubusercontent.com/Giorgiogoldoni/core/main/data/tickers_universe.json", timeout=30))["instruments"]}
-    except Exception: U = {}
+    U = globals().setdefault('_U', loadU())
     os.makedirs("data/tech", exist_ok=True); a = {"Open": "first", "High": "max", "Low": "min", "Close": "last"}
     for t in ts:
         d = yf.Ticker(t).history(period="10y", interval="1d", auto_adjust=False).dropna(subset=["Close"])
@@ -81,6 +96,13 @@ def main(ts):
                "borsa": "Borsa Italiana" if t.endswith(".MI") else "Xetra", "generato": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
                "prezzo": f(last.Close, 3), "var": f(last.Close - prev.Close, 3), "var_pct": f((last.Close / prev.Close - 1) * 100, 2),
                "min_gg": f(last.Low, 3), "max_gg": f(last.High, 3), "min_52": f(y.Low.min(), 3), "max_52": f(y.High.max(), 3),
-               "tf": {"D": calc(d), "W": calc(d.resample("W-FRI").agg(a).dropna()), "M": calc(d.resample("ME").agg(a).dropna())}, "pivot": pivots(d)}
+               "tf": {"D": calc(d), "W": calc(d.resample("W-FRI").agg(a).dropna()), "M": calc(d.resample("ME").agg(a).dropna())}, "pivot": pivots(d), "serie": serie(d)}
         json.dump(out, open(f"data/tech/{t.replace('.', '_')}.json", "w"), ensure_ascii=False, allow_nan=False); print("OK", t)
-if __name__ == "__main__": main([x.strip() for x in (sys.argv[1] if len(sys.argv) > 1 else "ISPA.DE").split(",") if x.strip()])
+if __name__ == "__main__":
+    a = sys.argv[1].strip() if len(sys.argv) > 1 else ""
+    ts = [x.strip() for x in a.split(",") if x.strip()] or [x.strip() for x in open("campione.txt") if x.strip()]
+    for t in ts:
+        try: main([t])
+        except Exception as e: print("ERR", t, e)
+        time.sleep(1)
+    mkindex()
