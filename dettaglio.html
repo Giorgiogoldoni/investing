@@ -3,7 +3,9 @@
 <title>Sommario tecnico ETF</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lightweight-charts/4.1.3/lightweight-charts.standalone.production.min.js"></script>
 <style>
+.lg{font-size:12px;color:var(--mut);margin:12px 0 2px}
 :root{--ink:#1b2430;--mut:#5d6773;--line:#d9dee4;--acc:#0b5c8a;--up:#17734a;--dn:#b3261e;--ne:#7a6200;--upbg:#e6f4ec;--dnbg:#fbe9e7;--nebg:#f6f0d6}
 *{box-sizing:border-box}body{margin:0;background:#fff;color:var(--ink);font:15px/1.5 "Segoe UI",Roboto,Helvetica,Arial,sans-serif}
 main{max-width:960px;margin:0 auto;padding:20px 16px 48px}
@@ -37,6 +39,7 @@ function draw(){const t=D.tf[cur],ex=D.ticker.split('.').pop(),sym=D.ticker.spli
  <a class="btn" target="_blank" rel="noopener" href="https://it.tradingview.com/chart/?symbol=${TV[ex]||ex}%3A${sym}">TradingView</a>
  <a class="btn" target="_blank" rel="noopener" href="https://finance.yahoo.com/quote/${D.ticker}">Yahoo Finance</a>
  ${ex==='MI'?`<a class="btn" target="_blank" rel="noopener" href="https://giorgiogoldoni.github.io/core/dettaglio.html?y=${D.ticker}">Grafico completo</a>`:''}</div>
+ <div class="lg" id="lg1"></div><div id="c1"></div><div class="lg">MACD(12,26,9): istogramma, linea MACD (blu), linea segnale (arancio). Frecce = incroci</div><div id="c2"></div><div class="lg">RSI(14), livelli 30 e 70</div><div id="c3"></div>
  <div class="tabs">${Object.keys(TF).map(k=>`<button class="tab ${k===cur?'on':''}" onclick="cur='${k}';draw()">${TF[k]}</button>`).join('')}</div>`;
  if(!t){h+=`<div class="box warn">Storia insufficiente per il timeframe ${TF[cur]}: servono almeno 30 barre.</div>`}
  else{h+=`<h2>Riassunto ${TF[cur]}</h2><span class="big ${cl(t.riassunto)}">${t.riassunto||'–'}</span> <span class="sub">saldo ${n(t.saldo,1)}% · indicatori: ${t.ind_riassunto||'–'} · medie mobili: ${t.ma_riassunto||'–'} · ultima barra ${t.ultima}${cur!=='D'?' (può essere in corso)':''}</span>
@@ -45,7 +48,27 @@ function draw(){const t=D.tf[cur],ex=D.ticker.split('.').pop(),sym=D.ticker.spli
  <h2>Medie mobili</h2><div class="wrap"><table><tr><th>Periodo</th><th>Semplice</th><th>Azione</th><th>Esponenziale</th><th>Azione</th></tr>${t.medie.map(m=>`<tr><td>MA${m.periodo}</td><td>${n(m.sma,3)}</td><td class="a ${cl(m.v_sma)}">${m.v_sma||'–'}</td><td>${n(m.ema,3)}</td><td class="a ${cl(m.v_ema)}">${m.v_ema||'–'}</td></tr>`).join('')}</table></div>`}
  h+=`<h2>Punti di pivot (giornaliero)</h2><div class="wrap"><table><tr><th>Nome</th><th>S3</th><th>S2</th><th>S1</th><th>Pivot</th><th>R1</th><th>R2</th><th>R3</th></tr>${Object.entries(D.pivot).map(([k,v])=>`<tr><td>${k}</td>${v.map(x=>`<td>${n(x)}</td>`).join('')}</tr>`).join('')}</table></div>
  <footer>Dati aggiornati al ${D.generato}. Segnali calcolati con regole proprie (vedi “Regole PDF”): non coincidono con quelli di Investing.com e hanno valore indicativo, non costituiscono consulenza.</footer>`;
- document.getElementById('app').innerHTML=h}
+ CH.forEach(c=>c.remove());CH=[];document.getElementById('app').innerHTML=h;chart()}
+let CH=[];
+function chart(){const s=D.serie;if(!s||!window.LightweightCharts)return;
+ const base={layout:{background:{color:'#fff'},textColor:'#1b2430'},grid:{vertLines:{color:'#eef1f4'},horzLines:{color:'#eef1f4'}},rightPriceScale:{borderColor:'#d9dee4'},timeScale:{borderColor:'#d9dee4'}};
+ const mk=(id,h)=>{const e=document.getElementById(id);const c=LightweightCharts.createChart(e,{...base,height:h,width:e.clientWidth});CH.push(c);return c};
+ const ser=(k)=>s.t.map((t,i)=>s[k][i]==null?null:{time:t,value:s[k][i]}).filter(Boolean);
+ const p=mk('c1',340),m=mk('c2',150),r=mk('c3',120);
+ const cs=p.addCandlestickSeries({upColor:'#17734a',downColor:'#b3261e',borderVisible:false,wickUpColor:'#17734a',wickDownColor:'#b3261e'});
+ cs.setData(s.t.map((t,i)=>({time:t,open:s.o[i],high:s.h[i],low:s.l[i],close:s.c[i]})));
+ [['ma20','#0b5c8a'],['ma50','#c77700'],['ma200','#6b3fa0']].forEach(([k,c])=>p.addLineSeries({color:c,lineWidth:1,priceLineVisible:false,lastValueVisible:false}).setData(ser(k)));
+ const mk_=[];for(let i=1;i<s.t.length;i++){const a=s.hist[i-1],b=s.hist[i];if(a==null||b==null)continue;
+  if(a<=0&&b>0)mk_.push({time:s.t[i],position:'belowBar',color:'#17734a',shape:'arrowUp'});if(a>=0&&b<0)mk_.push({time:s.t[i],position:'aboveBar',color:'#b3261e',shape:'arrowDown'})}
+ cs.setMarkers(mk_);
+ m.addHistogramSeries({priceLineVisible:false,lastValueVisible:false}).setData(s.t.map((t,i)=>s.hist[i]==null?null:{time:t,value:s.hist[i],color:s.hist[i]>=0?'#9bd3b5':'#f0b1ab'}).filter(Boolean));
+ m.addLineSeries({color:'#0b5c8a',lineWidth:1,priceLineVisible:false}).setData(ser('macd'));m.addLineSeries({color:'#c77700',lineWidth:1,priceLineVisible:false}).setData(ser('sig'));
+ const rs=r.addLineSeries({color:'#1b2430',lineWidth:1,priceLineVisible:false});rs.setData(ser('rsi'));
+ [30,70].forEach(v=>rs.createPriceLine({price:v,color:'#b3261e',lineStyle:2,lineWidth:1,axisLabelVisible:true,title:''}));
+ let lock=false;CH.forEach(c=>c.timeScale().subscribeVisibleLogicalRangeChange(g=>{if(lock||!g)return;lock=true;CH.forEach(o=>{if(o!==c)o.timeScale().setVisibleLogicalRange(g)});lock=false}));
+ p.timeScale().setVisibleLogicalRange({from:s.t.length-130,to:s.t.length+3});
+ document.getElementById('lg1').textContent='Candele giornaliere · MA20 (blu) · MA50 (arancio) · MA200 (viola) · ultima barra '+s.t[s.t.length-1]+' · dati generati '+D.generato}
+addEventListener('resize',()=>CH.forEach((c,i)=>c.applyOptions({width:document.getElementById('c'+(i+1)).clientWidth})));
 function xl(){const wb=XLSX.utils.book_new();
  for(const k of Object.keys(TF)){const t=D.tf[k];if(!t)continue;
   XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet([...t.indicatori.map(i=>({Nome:i.nome,Valore:i.valore,Azione:i.azione||'non vota',Nota:i.nota||''})),...t.medie.flatMap(m=>[{Nome:'SMA'+m.periodo,Valore:m.sma,Azione:m.v_sma||''},{Nome:'EMA'+m.periodo,Valore:m.ema,Azione:m.v_ema||''}]),{Nome:'RIASSUNTO',Valore:t.saldo,Azione:t.riassunto||''}]),TF[k])}
