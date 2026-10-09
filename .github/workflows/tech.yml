@@ -17,14 +17,13 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: "3.12"}
       - run: pip install yfinance pandas numpy
+      - run: rm -rf data/tech data/tech_parts
       - run: python scripts/compute_tech.py "${{ github.event.inputs.tickers }}"
         env: {SHARD: "${{ matrix.shard }}/8"}
       - uses: actions/upload-artifact@v4
         with:
           name: shard-${{ matrix.shard }}
-          path: |
-            data/tech
-            data/tech_parts
+          path: data
           if-no-files-found: ignore
   unisci:
     needs: calcola
@@ -36,7 +35,7 @@ jobs:
         with: {python-version: "3.12"}
       - run: rm -rf data/tech data/tech_parts
       - uses: actions/download-artifact@v4
-        with: {pattern: "shard-*", merge-multiple: true, path: .}
+        with: {pattern: "shard-*", merge-multiple: true, path: data}
       - run: pip install pandas numpy yfinance && python scripts/compute_tech.py --merge
       - run: |
           rm -rf data/tech_parts
