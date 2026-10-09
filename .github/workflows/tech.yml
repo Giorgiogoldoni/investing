@@ -2,19 +2,43 @@ name: Sommario tecnico
 on:
   workflow_dispatch:
     inputs:
-      tickers: {description: "Ticker yfinance separati da virgola", default: ""}
+      tickers: {description: "Ticker yfinance separati da virgola (vuoto = tutto core)", default: ""}
   schedule: [{cron: "45 16 * * 1-5"}]
 permissions: {contents: write}
 jobs:
   calcola:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix: {shard: [0, 1, 2, 3, 4, 5, 6, 7]}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: {python-version: "3.12"}
       - run: pip install yfinance pandas numpy
       - run: python scripts/compute_tech.py "${{ github.event.inputs.tickers }}"
+        env: {SHARD: "${{ matrix.shard }}/8"}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shard-${{ matrix.shard }}
+          path: |
+            data/tech
+            data/tech_parts
+          if-no-files-found: ignore
+  unisci:
+    needs: calcola
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: rm -rf data/tech data/tech_parts
+      - uses: actions/download-artifact@v4
+        with: {pattern: "shard-*", merge-multiple: true, path: .}
+      - run: pip install pandas numpy yfinance && python scripts/compute_tech.py --merge
       - run: |
+          rm -rf data/tech_parts
           git config user.name "github-actions"; git config user.email "actions@github.com"
-          git add data/tech; git diff --staged --quiet || (git commit -m "Aggiornamento sommario tecnico" && git push)
+          git add -A data/tech; git diff --staged --quiet || (git commit -m "Aggiornamento sommario tecnico (tutto core)" && git push)
