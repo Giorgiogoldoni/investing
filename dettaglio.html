@@ -29,7 +29,7 @@ const TF={D:'Giornaliero',W:'Settimanale',M:'Mensile'},TV={MI:'MIL',DE:'XETR',PA
 const n=(v,d=2)=>v==null?'–':Number(v).toLocaleString('it-IT',{minimumFractionDigits:d,maximumFractionDigits:d});
 const cl=s=>s||'';let D,cur='D';
 fetch(F+'?t='+Date.now()).then(r=>{if(!r.ok)throw 0;return r.json()}).then(j=>{D=j;draw()}).catch(()=>{
- document.getElementById('app').innerHTML='<h1>Dati non disponibili per '+T+'</h1><p class="warn">Il file '+F+' non esiste ancora. Lancia il workflow “Sommario tecnico” da GitHub → Actions → Run workflow, con il ticker '+T+'.</p>'});
+ {const ex=T.split('.').pop(),sy=T.split('.')[0];document.getElementById('app').innerHTML='<h1>'+T+'</h1><p>Per questo strumento non è calcolato il dettaglio con grafico (solo i migliori e il portafoglio). Il riassunto è nella <a href="index.html">tabella</a>. Collegamenti:</p><div class="bar"><a class="btn" target="_blank" rel="noopener" href="https://it.tradingview.com/chart/?symbol='+(TV[ex]||ex)+'%3A'+sy+'">TradingView</a><a class="btn" target="_blank" rel="noopener" href="https://finance.yahoo.com/quote/'+T+'">Yahoo Finance</a>'+(ex==='MI'?'<a class="btn" target="_blank" rel="noopener" href="https://giorgiogoldoni.github.io/core/dettaglio.html?y='+T+'">Grafico completo (core)</a>':'')+'</div>'}});
 function draw(){const t=D.tf[cur],ex=D.ticker.split('.').pop(),sym=D.ticker.split('.')[0],up=D.var>=0;
  document.title=D.nome+' – sommario tecnico';
  let h=`<div class="top"><div><h1>${D.nome}</h1><div class="sub">${D.ticker} · ${D.borsa} · ${D.valuta}${D.isin?' · '+D.isin:''}</div>
