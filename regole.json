@@ -80,7 +80,7 @@
   ],
   [
    "Filtro Migliori (tabella)",
-   "Giornaliero, Settimanale e Mensile almeno Compra; saldo medio D/W/M >= +40%; nessun avviso di ipercomprato (meno di 2 indicatori in zona estrema); ultima barra aggiornata; scambi medi 20 giorni >= 50.000 euro. I leva non sono esclusi (interruttore facoltativo). Indica i piu allineati, non i migliori per rendimento atteso: il consenso non e' validato come predittivo."
+   "Giornaliero, Settimanale e Mensile almeno Compra; saldo medio D/W/M >= +40%; ultima barra aggiornata; scambi medi 20 giorni >= 50.000 euro. I leva non sono esclusi. 'Non ipercomprati' e' un interruttore facoltativo, non fa parte del preset: nei trade storici di core gli ingressi con RSI alto non andavano peggio degli altri. 'Migliori' indica i piu allineati, non i migliori per rendimento atteso: il consenso non e' validato come predittivo."
   ],
   [
    "Compra dal",
@@ -89,6 +89,10 @@
   [
    "Segnale core",
    "Segnale del motore di core (BUY1, BUY2, BUY3, EXIT1, EXIT2, MEAN REV, WATCH) calcolato con lo stesso codice di core sui prezzi giornalieri di questa pagina (ultimi 2 anni). E' un segnale diverso dal consenso degli indicatori: le due letture possono non coincidere."
+  ],
+  [
+   "Esposizione",
+   "Gruppo ricavato dal nome dello strumento (per esempio Materie prime, Mondo, S&P 500). E' una stima: serve a riconoscere i duplicati (stessa esposizione, emittenti diversi), non a classificare in modo preciso. 'Altro' = non riconosciuto."
   ],
   [
    "Avvertenza",
