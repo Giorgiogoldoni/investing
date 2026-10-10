@@ -1,6 +1,10 @@
 import sys, json, os, time, glob, datetime as dt, urllib.request
 import numpy as np, pandas as pd, yfinance as yf
 sys.path.insert(0, os.path.dirname(__file__)); from issuers import issuer
+try:
+    sys.path.insert(0, os.environ.get("CORE_SCRIPTS", "core/scripts")); import generate_charts as G
+except Exception as e:
+    G = None; print("MOTORE CORE NON DISPONIBILE", repr(e)[:100])
 R = json.load(open("regole.json"))["soglie"]
 def wil(s, n): return s.ewm(alpha=1/n, adjust=False, min_periods=n).mean()
 def nn(v): return v is None or pd.isna(v)
@@ -90,12 +94,47 @@ def recent(t, d):
         if len(n): d = pd.concat([d[["Open", "High", "Low", "Close"]], n])
     except Exception as e: print("FALLBACK", t, e)
     ok = d.index[-1].date() >= a; print("OK-FALLBACK" if ok else "LAG", t, d.index[-1].date(), "attesa", a); return d, ok
+def core_sig(d):
+    """Segnale del motore di core (BUY1/BUY2/BUY3/EXIT/WATCH...) con la data da cui vale. Stesso codice di core, su 2 anni di barre."""
+    if G is None or len(d) < 60: return None
+    try:
+        x = d.iloc[-504:]; r = lambda c: [round(float(v), 4) for v in x[c].values]; hi, lo, cl = r("High"), r("Low"), r("Close")
+        ka = G.calc_kama(cl); _, sb = G.calc_sar_array(hi, lo); ao = G.calc_ao_array(hi, lo)
+        seg = G.calc_segnale_array(cl, ka, G.calc_er_array(cl), G.calc_baffetti_array(hi, lo), G.calc_ao_improving_array(ao), sb,
+                                   G.calc_cross_days_array(cl, ka), G.calc_mm_align_array(cl), G.calc_rsi_array(cl))
+        if not seg or seg[-1] is None: return None
+        i = len(seg) - 1
+        while i > 0 and seg[i - 1] == seg[-1]: i -= 1
+        return {"segnale": seg[-1], "dal": str(x.index[i].date()), "barre": len(seg) - 1 - i}
+    except Exception as e: print("CORE_SIG", repr(e)[:80]); return None
+def compra_dal(d, maxk, cambi=False):
+    """Data da cui lo stato (saldo) e' almeno 'Compra' senza interruzioni; None se oggi non lo e'."""
+    sg = R["aggregato"][0]; x = d.iloc[-500:]
+    def st(k):
+        c = calc(x.iloc[:len(x) - k] if k else x); return c["saldo"] if c else None
+    s0 = st(0)
+    if s0 is None or s0 < sg: return None
+    S = [s0] + [st(k) for k in range(1, 61 if cambi else 2) if len(x) - k >= 30]; k = len(S)
+    while k <= maxk and len(x) - k >= 30 and all(s is not None and s >= sg for s in S[:k]):
+        S.append(st(k)); k += 1
+    k = next((i for i, s in enumerate(S) if s is None or s < sg), len(S)); prima = k >= len(S) and k > maxk - 1
+    i0 = len(x) - k; c = x.Close
+    out = {"dal": str(x.index[i0].date()), "barre": k - 1, "prezzo": f(c.iloc[i0], 3), "rend": f((c.iloc[-1] / c.iloc[i0] - 1) * 100, 1), "prima": bool(prima)}
+    if cambi: v = [s is not None and s >= sg for s in S[:61]]; out["cambi"] = sum(v[i] != v[i + 1] for i in range(len(v) - 1))
+    return out
+def tfs(d, a):
+    out = {}
+    for k, fr, mk in (("D", d, 120), ("W", d.resample("W-FRI").agg(a).dropna(), 52), ("M", d.resample("ME").agg(a).dropna(), 24)):
+        c = calc(fr)
+        if c: c["compra"] = compra_dal(fr, mk, k == "D")
+        out[k] = c
+    return out
 def build(t, d, U, ok):
     last, prev, y = d.iloc[-1], d.iloc[-2], d.iloc[-252:]; a = {"Open": "first", "High": "max", "Low": "min", "Close": "last"}; u = U.get(t, {})
     return {"ticker": t, "isin": u.get("isin"), "nome": u.get("name", t), "valuta": "EUR", "aggiornato": ok, "borsa": "Borsa Italiana" if t.endswith(".MI") else "Xetra",
             "generato": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"), "prezzo": f(last.Close, 3), "var": f(last.Close - prev.Close, 3), "var_pct": f((last.Close / prev.Close - 1) * 100, 2),
             "min_gg": f(last.Low, 3), "max_gg": f(last.High, 3), "min_52": f(y.Low.min(), 3), "max_52": f(y.High.max(), 3),
-            "tf": {"D": calc(d), "W": calc(d.resample("W-FRI").agg(a).dropna()), "M": calc(d.resample("ME").agg(a).dropna())}, "pivot": pivots(d)}
+            "tf": tfs(d, a), "pivot": pivots(d), "core": core_sig(d)}
 def riga(t, o, d, U):
     g = lambda k: o["tf"].get(k) or {}; sal = [g(k).get("saldo") for k in "DWM"]; v = [x for x in sal if x is not None]; u = U.get(t, {}); c = (g("D").get("macd") or {}).get("incrocio") or {}
     sc = round(sum(v) / len(v), 1) if sal[0] is not None and sal[1] is not None else None
@@ -103,18 +142,18 @@ def riga(t, o, d, U):
     return {"ticker": t, "isin": o["isin"], "nome": o["nome"], "borsa": o["borsa"], "issuer": issuer(o["nome"]), "leva": bool(u.get("is_leveraged")), "classe": u.get("asset_class"),
             "prezzo": o["prezzo"], "var_pct": o["var_pct"], "ultima": g("D").get("ultima"), "agg": o["aggiornato"], "D": [g("D").get("riassunto"), g("D").get("saldo")],
             "W": [g("W").get("riassunto"), g("W").get("saldo")], "M": [g("M").get("riassunto"), g("M").get("saldo")], "sc": sc, "estr": g("D").get("ipercomprati"),
-            "mx": c.get("direzione") if c.get("recente") else None, "turn": None if tu is None or pd.isna(tu) else int(tu), "det": False}
+            "mx": c.get("direzione") if c.get("recente") else None, "turn": None if tu is None or pd.isna(tu) else int(tu), "cd": [(g(k).get("compra") or {}).get("dal") for k in "DWM"], "rd": (g("D").get("compra") or {}).get("rend"), "cam": (g("D").get("compra") or {}).get("cambi"), "sig": (o.get("core") or {}).get("segnale"), "sigdal": (o.get("core") or {}).get("dal"), "det": False}
 def run(ts, tag, top=40):
-    U = loadU(); camp = {x.strip() for x in open("campione.txt") if x.strip()} if os.path.exists("campione.txt") else set(); res = {}
+    U = loadU(); camp = {x.strip() for x in open("campione.txt") if x.strip()} if os.path.exists("campione.txt") else set(); res = {}; fails = []
     for t in ts:
         try:
             d = yf.Ticker(t).history(period="10y", interval="1d", auto_adjust=False).dropna(subset=["Close"])
-            if len(d) < 60: print("SKIP", t, len(d)); continue
+            if len(d) < 60: print("SKIP", t, len(d)); fails.append({"ticker": t, "motivo": f"storia insufficiente ({len(d)} barre)"}); continue
             d.index = d.index.tz_localize(None); d, ok = recent(t, d); o = build(t, d, U, ok); res[t] = (o, riga(t, o, d, U), d); print("OK", t)
-        except Exception as e: print("ERR", t, repr(e)[:100])
+        except Exception as e: print("ERR", t, repr(e)[:100]); fails.append({"ticker": t, "motivo": repr(e)[:120]})
         time.sleep(0.5)
     best = {t for t, _ in sorted(((t, v[1]["sc"]) for t, v in res.items() if v[1]["sc"] is not None), key=lambda x: -x[1])[:top]}
-    os.makedirs("data/tech", exist_ok=True); os.makedirs("data/tech_parts", exist_ok=True)
+    os.makedirs("data/tech", exist_ok=True); os.makedirs("data/tech_parts", exist_ok=True); json.dump(fails, open(f"data/tech_parts/falliti_{tag}.json", "w"), ensure_ascii=False)
     for t, (o, r, d) in res.items():
         if t in best or t in camp:
             o["serie"] = serie(d); r["det"] = True
@@ -124,6 +163,7 @@ def merge():
     rows = [r for p in sorted(glob.glob("data/tech_parts/part_*.json")) for r in json.load(open(p))]
     if not rows: print("NESSUN DATO: indice non scritto"); sys.exit(1)
     os.makedirs("data/tech", exist_ok=True)
+    json.dump([x for p in sorted(glob.glob("data/tech_parts/falliti_*.json")) for x in json.load(open(p))], open("data/tech/falliti.json", "w"), ensure_ascii=False)
     json.dump({"generato": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"), "righe": rows}, open("data/tech/index.json", "w"), ensure_ascii=False, allow_nan=False); print("INDICE", len(rows))
 if __name__ == "__main__":
     if "--merge" in sys.argv: merge(); sys.exit()
