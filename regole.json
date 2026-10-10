@@ -1,6 +1,6 @@
 {
  "versione": "1.0",
- "aggiornato": "2026-10-07",
+ "aggiornato": "2026-10-10",
  "soglie": {
   "rsi": [
    45,
@@ -81,6 +81,14 @@
   [
    "Filtro Migliori (tabella)",
    "Giornaliero, Settimanale e Mensile almeno Compra; saldo medio D/W/M >= +40%; nessun avviso di ipercomprato (meno di 2 indicatori in zona estrema); ultima barra aggiornata; scambi medi 20 giorni >= 50.000 euro. I leva non sono esclusi (interruttore facoltativo). Indica i piu allineati, non i migliori per rendimento atteso: il consenso non e' validato come predittivo."
+  ],
+  [
+   "Compra dal",
+   "Data da cui il saldo e' almeno +20% (stato Compra o Compra Adesso) senza interruzioni, con chiusura di quel giorno, rendimento da allora e numero di cambi di stato nelle ultime 60 barre (giornaliero). Se lo stato dura da piu' di 120 barre (giornaliero), 52 (settimanale) o 24 (mensile) la data e' segnata 'o prima'."
+  ],
+  [
+   "Segnale core",
+   "Segnale del motore di core (BUY1, BUY2, BUY3, EXIT1, EXIT2, MEAN REV, WATCH) calcolato con lo stesso codice di core sui prezzi giornalieri di questa pagina (ultimi 2 anni). E' un segnale diverso dal consenso degli indicatori: le due letture possono non coincidere."
   ],
   [
    "Avvertenza",
