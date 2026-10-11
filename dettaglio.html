@@ -27,9 +27,9 @@ td.a{font-weight:600}td.Compra,td.Compra\ Adesso{color:var(--up);background:none
 const q=new URLSearchParams(location.search),T=q.get('y')||'ISPA.DE',F='data/tech/'+T.replace(/\./g,'_')+'.json';
 const TF={D:'Giornaliero',W:'Settimanale',M:'Mensile'},TV={MI:'MIL',DE:'XETR',PA:'EURONEXT',L:'LSE'};
 const n=(v,d=2)=>v==null?'–':Number(v).toLocaleString('it-IT',{minimumFractionDigits:d,maximumFractionDigits:d});
-const cl=s=>s||'';let D,cur='D';
+const cl=s=>s||'';let D,cur='D';let IM={};fetch('investing_map.json').then(r=>r.ok?r.json():{}).then(j=>{IM=j;if(D)draw()}).catch(()=>{});const INV=o=>IM[o.ticker]||'https://it.investing.com/search/?q='+encodeURIComponent(o.isin||o.ticker.split('.')[0]);
 fetch(F+'?t='+Date.now()).then(r=>{if(!r.ok)throw 0;return r.json()}).then(j=>{D=j;draw()}).catch(()=>{
- {const ex=T.split('.').pop(),sy=T.split('.')[0];document.getElementById('app').innerHTML='<h1>'+T+'</h1><p>Per questo strumento non è calcolato il dettaglio con grafico (solo i migliori e il portafoglio). Il riassunto è nella <a href="index.html">tabella</a>. Collegamenti:</p><div class="bar"><a class="btn" target="_blank" rel="noopener" href="https://it.tradingview.com/chart/?symbol='+(TV[ex]||ex)+'%3A'+sy+'">TradingView</a><a class="btn" target="_blank" rel="noopener" href="https://finance.yahoo.com/quote/'+T+'">Yahoo Finance</a>'+(ex==='MI'?'<a class="btn" target="_blank" rel="noopener" href="https://giorgiogoldoni.github.io/core/dettaglio.html?y='+T+'">Grafico completo (core)</a>':'')+'</div>'}});
+ {const ex=T.split('.').pop(),sy=T.split('.')[0];document.getElementById('app').innerHTML='<h1>'+T+'</h1><p>Per questo strumento non è calcolato il dettaglio con grafico (solo i migliori e il portafoglio). Il riassunto è nella <a href="index.html">tabella</a>. Collegamenti:</p><div class="bar"><a class="btn" target="_blank" rel="noopener" href="https://it.tradingview.com/chart/?symbol='+(TV[ex]||ex)+'%3A'+sy+'">TradingView</a><a class="btn" target="_blank" rel="noopener" href="https://finance.yahoo.com/quote/'+T+'">Yahoo Finance</a><a class="btn" target="_blank" rel="noopener" href="'+INV({ticker:T})+'">Investing</a>'+(ex==='MI'?'<a class="btn" target="_blank" rel="noopener" href="https://giorgiogoldoni.github.io/core/dettaglio.html?y='+T+'">Grafico completo (core)</a>':'')+'</div>'}});
 function draw(){const t=D.tf[cur],ex=D.ticker.split('.').pop(),sym=D.ticker.split('.')[0],up=D.var>=0;
  document.title=D.nome+' – sommario tecnico';
  let h=`<div class="top"><div><h1>${D.nome}</h1><div class="sub">${D.ticker} · ${D.borsa} · ${D.valuta}${D.isin?' · '+D.isin:''}</div>
@@ -37,6 +37,7 @@ function draw(){const t=D.tf[cur],ex=D.ticker.split('.').pop(),sym=D.ticker.spli
  <div><div class="px">${n(D.prezzo)}</div><div class="${up?'Compra':'Vendi'}" style="padding:2px 8px;border-radius:4px;display:inline-block">${up?'+':''}${n(D.var)} (${up?'+':''}${n(D.var_pct)}%)</div></div></div>
  <div class="bar"><button onclick="xl()">Scarica Excel</button><button onclick="pdf()">Regole PDF</button>
  <a class="btn" target="_blank" rel="noopener" href="https://it.tradingview.com/chart/?symbol=${TV[ex]||ex}%3A${sym}">TradingView</a>
+ <a class="btn" target="_blank" rel="noopener" href="${INV(D)}">Investing</a>
  <a class="btn" target="_blank" rel="noopener" href="https://finance.yahoo.com/quote/${D.ticker}">Yahoo Finance</a>
  ${ex==='MI'?`<a class="btn" target="_blank" rel="noopener" href="https://giorgiogoldoni.github.io/core/dettaglio.html?y=${D.ticker}">Grafico completo</a>`:''}</div>
  <div class="lg" id="lg1"></div><div id="c1"></div><div class="lg">MACD(12,26,9): istogramma, linea MACD (blu), linea segnale (arancio). Frecce = incroci</div><div id="c2"></div><div class="lg">RSI(14), livelli 30 e 70</div><div id="c3"></div>
