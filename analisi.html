@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Scheda analisi ETF</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+:root{--ink:#1b2430;--mut:#5d6773;--line:#d9dee4;--acc:#0b5c8a;--up:#17734a;--dn:#b3261e;--ne:#7a6200;--upbg:#e6f4ec;--dnbg:#fbe9e7;--nebg:#f6f0d6}
+*{box-sizing:border-box}body{margin:0;background:#fff;color:var(--ink);font:15px/1.5 "Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+main{max-width:960px;margin:0 auto;padding:20px 16px 48px}h1{font-size:22px;margin:0}h2{font-size:16px;margin:26px 0 8px}.sub{color:var(--mut);font-size:13px}
+.top{display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;align-items:flex-end;border-bottom:2px solid var(--ink);padding-bottom:12px}
+.px{font-size:30px;font-weight:700;font-variant-numeric:tabular-nums}.bar{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+button,.btn{font:inherit;font-size:13px;padding:6px 12px;border:1px solid var(--acc);background:#fff;color:var(--acc);border-radius:4px;cursor:pointer;text-decoration:none}
+button:hover,.btn:hover{background:var(--acc);color:#fff}input{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:4px;width:100%;max-width:420px}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right}th:first-child,td:first-child{text-align:left}th{font-weight:600;color:var(--mut);font-size:13px}
+.big{display:inline-block;padding:6px 14px;border-radius:4px;font-weight:700;font-size:18px}.Su,.Acq{background:var(--upbg);color:var(--up)}.Giu,.Usc{background:var(--dnbg);color:var(--dn)}.Laterale,.Neu{background:var(--nebg);color:var(--ne)}
+.box{border:1px solid var(--line);border-radius:4px;padding:10px 14px;margin-top:10px;font-size:14px}.warn{color:var(--dn);border-color:var(--dn)}.wrap{overflow-x:auto}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}.k{color:var(--mut);font-size:12px}footer{margin-top:32px;font-size:12px;color:var(--mut)}
+</style></head><body><main id="app"><p>Caricamento…</p></main>
+<script>
+const q=new URLSearchParams(location.search),T=q.get('y');
+const TVS={MI:'MIL',DE:'XETR',PA:'EURONEXT',L:'LSE'};
+const n=(v,d=2)=>v==null?'–':Number(v).toLocaleString('it-IT',{minimumFractionDigits:d,maximumFractionDigits:d});
+const fl=v=>v==null?'–':v;let D,IM={},IDX=null;
+const tvu=t=>{const ex=t.split('.').pop(),sy=t.split('.')[0];return 'https://it.tradingview.com/chart/?symbol='+encodeURIComponent((TVS[ex]||ex)+':'+sy)};
+const inv=o=>IM[o.ticker]||'https://it.investing.com/search/?q='+encodeURIComponent(o.isin||o.ticker.split('.')[0]);
+const arrow={Su:'▲ Su',Giu:'▼ Giù',Laterale:'= Laterale'};
+const cls=s=>s&&s.startsWith('Acquisto')?'Acq':s&&s.startsWith('Uscita')?'Usc':'Neu';
+const stale=()=>{const l=new Date(D.ultima+'T00:00:00Z'),a=new Date();a.setUTCDate(a.getUTCDate()-(a.getUTCHours()<17?1:0));while([0,6].includes(a.getUTCDay()))a.setUTCDate(a.getUTCDate()-1);return l<new Date(a.toISOString().slice(0,10)+'T00:00:00Z')};
+Promise.all([fetch('investing_map.json').then(r=>r.ok?r.json():{}).catch(()=>({})),fetch('data/fin/index.json?t='+Date.now()).then(r=>r.json()).catch(()=>null)]).then(([m,i])=>{IM=m;IDX=i;start()});
+function start(){
+ if(!T){home();return}
+ fetch('data/fin/'+T.replace(/\./g,'_')+'.json?t='+Date.now()).then(r=>{if(!r.ok)throw 0;return r.json()}).then(j=>{D=j;draw()}).catch(()=>{home('Scheda non disponibile per '+T+': ticker fuori da core o non ancora calcolato.')});
+}
+function home(msg){
+ const dl=IDX?IDX.righe.map(r=>`<option value="${r.ticker}">${r.nome} · ${r.isin||''}</option>`).join(''):'';
+ document.getElementById('app').innerHTML=`<h1>Scheda analisi ETF</h1><p class="sub">Cerca per ticker, nome o ISIN. ${IDX?IDX.righe.length+' strumenti · dati generati '+IDX.generato:'Indice non ancora generato: lancia il workflow “Scheda analisi”.'}</p>
+ ${msg?`<div class="box warn">${msg}</div>`:''}<div class="bar"><input id="s" list="dl" placeholder="es. AIAI.MI oppure IE00BK5BCD43" onkeydown="if(event.key==='Enter')go()"><datalist id="dl">${dl}</datalist><button onclick="go()">Apri</button><a class="btn" href="index.html">Torna a investing</a></div>`}
+function go(){let v=document.getElementById('s').value.trim().toUpperCase();if(IDX){const r=IDX.righe.find(r=>r.ticker.toUpperCase()===v||(r.isin||'').toUpperCase()===v)||IDX.righe.find(r=>(r.nome||'').toUpperCase().includes(v));if(r)v=r.ticker}if(v)location.search='?y='+encodeURIComponent(v)}
+function draw(){
+ const up=D.var>=0,tr=D.tend,st=D.stato,s=D.stats,r=D.range5,pv=D.pivot,vm=s.vm;
+ let h=`<div class="top"><div><h1>${D.nome}</h1><div class="sub">${D.ticker} · ${D.borsa} · ${D.valuta}${D.isin?' · '+D.isin:''}</div>
+ <div class="sub">Ultima barra <b>${D.ultima}</b> · dati generati ${D.generato}</div></div>
+ <div><div class="px">${n(D.prezzo)}</div><div style="color:${up?'var(--up)':'var(--dn)'}">${up?'+':''}${n(D.var)} (${up?'+':''}${n(D.var_pct)}%)</div></div></div>
+ ${stale()||!D.aggiornato?`<div class="box warn"><b>Attenzione:</b> l'ultima barra (${D.ultima}) è più vecchia dell'ultima seduta di borsa. I valori non includono la seduta più recente.</div>`:''}
+ <div class="bar"><button onclick="xl()">Scarica Excel</button><button onclick="pdf()">Regole PDF</button><a class="btn" target="_blank" rel="noopener" href="${tvu(D.ticker)}">TradingView</a><a class="btn" target="_blank" rel="noopener" href="${inv(D)}">Investing</a><a class="btn" href="index.html">Torna a investing</a><a class="btn" href="analisi.html">Altra ricerca</a></div>
+ <h2>Segnale (nostro metodo)</h2>${st?`<span class="big ${cls(st.stato)}">${st.stato}</span> <span class="sub">segnale core ${st.core} dal ${st.dal} (${st.barre} barre)${st.stop!=null?` · stop ${n(st.stop,3)} · target ${n(st.target,3)} · al prezzo di chiusura ${n(D.prezzo,3)}`:' · nessuno stop/target: non in posizione'}</span>`:'<span class="sub">Segnale core non disponibile.</span>'}
+ <h2>Tendenza</h2><div class="grid">${[['Breve (5 barre)',tr.breve],['Medio (21 barre)',tr.medio],['Lungo (63 barre)',tr.lungo]].map(([l,v])=>`<div class="box"><div class="k">${l}</div><span class="big ${v||'Laterale'}">${v?arrow[v]:'n.d.'}</span></div>`).join('')}</div>
+ <h2>Range a 5 giorni e livelli</h2><div class="wrap"><table><tr><th></th><th>2° Sup / 90% giù</th><th>1° Sup / 68% giù</th><th>Prezzo</th><th>1ª Res / 68% su</th><th>2ª Res / 90% su</th></tr>
+ <tr><td>Range 5 gg (deviazione standard)</td><td>${r?n(r.p90[0],3):'–'}</td><td>${r?n(r.p68[0],3):'–'}</td><td><b>${n(D.prezzo,3)}</b></td><td>${r?n(r.p68[1],3):'–'}</td><td>${r?n(r.p90[1],3):'–'}</td></tr>
+ <tr><td>Pivot classico</td><td>${n(pv[1],3)}</td><td>${n(pv[2],3)}</td><td>${n(pv[3],3)}</td><td>${n(pv[4],3)}</td><td>${n(pv[5],3)}</td></tr></table></div>
+ <h2>Volumi, variazioni, volatilità</h2><div class="wrap"><table><tr><th></th><th>5</th><th>10 / 21</th><th>21 / rapporto</th></tr>
+ <tr><td>Volumi medi (5, 21, rapporto)</td><td>${n(vm[0],0)}</td><td>${n(vm[1],0)}</td><td>${n(vm[2],3)}</td></tr>
+ <tr><td>Variaz.% (1, 5, 21 giorni)</td><td>${n(s.var[0],3)}</td><td>${n(s.var[1],3)}</td><td>${n(s.var[2],3)}</td></tr>
+ <tr><td>Volatilità annualizzata % (5, 10, 21)</td><td>${n(s.vol[0],3)}</td><td>${n(s.vol[1],3)}</td><td>${n(s.vol[2],3)}</td></tr></table></div>
+ ${s.vm_ok?'':'<div class="box warn">Volumi troppo bassi per essere significativi: non sono usati nel commento.</div>'}
+ <h2>Oscillatori, divergenze, candele</h2><div class="box">RSI(14): <b>${n(D.ind.rsi,1)}</b> · Stocastico (3,5): <b>${n(D.ind.stoch,1)}</b><br>Divergenza (5 gg max): <b>${D.divergenza||'nessuna individuata'}</b><br>Candele (3 gg max): <b>${D.candele.length?D.candele.join(', '):'nessuna formazione rilevante'}</b></div>
+ <h2>Commento</h2><div class="box">${D.commento}</div>
+ <h2>Grafico</h2><div id="gr" class="box sub">Caricamento grafico scannerv2…</div>
+ <footer>Lettura tecnica a regole proprie (vedi “Regole PDF”): non coincide con quella di Fineco o Investing.com, ha valore indicativo e non costituisce consulenza. I volumi degli ETF sono spesso quelli di una sola sede.</footer>`;
+ document.getElementById('app').innerHTML=h;document.title=D.nome+' – scheda analisi';chart()}
+async function chart(){
+ const el=document.getElementById('gr');
+ try{const r=await fetch('https://giorgiogoldoni.github.io/scannerv2/data/charts/'+D.ticker.replace(/\./g,'_')+'.json?t='+Date.now());if(!r.ok)throw 0;const c=await r.json();if(!c.closes||!c.closes.length)throw 0;svg(el,c)}
+ catch(e){el.innerHTML='Grafico scannerv2 non disponibile per questo ticker (esiste solo per l\'universo scannerv2). <a target="_blank" rel="noopener" href="'+tvu(D.ticker)+'">Apri su TradingView</a>.'}}
+function svg(el,c){
+ const W=Math.max(el.clientWidth||700,400),N=c.closes.length,P=44,pw=W-P-14,x=i=>P+i/Math.max(N-1,1)*pw;
+ const ok=a=>(a||[]).filter(v=>v!=null&&!isNaN(v)),mm=a=>{const v=ok(a);return v.length?[Math.min(...v),Math.max(...v)]:[0,1]};
+ const pan=[{h:170,l:'Prezzo + KAMA + segnali',s:[['closes','#1b2430'],['kama','#c77700']]},{h:60,l:'AO',s:[['ao','#0b5c8a']]},{h:55,l:'RSI(14)',s:[['rsi','#6b3fa0']]}];
+ const COL={BUY3:'#2f9e44',BUY2:'#1971c2',BUY1:'#0c8599',SELL:'#c92a2a',WATCH:'#e67700'};let y0=8,out='';
+ pan.forEach(p=>{const all=p.s.flatMap(([k])=>ok(c[k])),[a,b]=mm(all),sy=v=>y0+p.h-(b===a?.5:(v-a)/(b-a))*p.h;
+  out+=`<text x="${P}" y="${y0-1}" font-size="9" fill="#5d6773">${p.l}</text><rect x="${P}" y="${y0}" width="${pw}" height="${p.h}" fill="none" stroke="#d9dee4"/><text x="4" y="${y0+9}" font-size="9" fill="#5d6773">${n(b,2)}</text><text x="4" y="${y0+p.h}" font-size="9" fill="#5d6773">${n(a,2)}</text>`;
+  p.s.forEach(([k,col])=>{const pts=(c[k]||[]).map((v,i)=>v==null||isNaN(v)?null:x(i)+','+sy(v)).filter(Boolean).join(' ');out+=`<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.3"/>`});
+  if(p.l.startsWith('Prezzo'))(c.signals||[]).forEach((g,i)=>{if(COL[g]&&c.signals[i-1]!==g)out+=`<circle cx="${x(i)}" cy="${sy(c.closes[i])}" r="3.5" fill="${COL[g]}"><title>${g} ${c.dates[i]}</title></circle>`});
+  if(p.l.startsWith('RSI'))[30,70].forEach(v=>out+=`<line x1="${P}" x2="${P+pw}" y1="${sy(v)}" y2="${sy(v)}" stroke="#b9c0c8" stroke-dasharray="3 3"/>`);
+  y0+=p.h+22});
+ const d=c.dates||[];out+=`<text x="${P}" y="${y0}" font-size="9" fill="#5d6773">${d[0]||''}</text><text x="${P+pw}" y="${y0}" font-size="9" text-anchor="end" fill="#5d6773">${d[N-1]||''} (ultimo dato scannerv2)</text>`;
+ el.innerHTML=`<svg width="${W}" height="${y0+8}" style="background:#fff">${out}</svg><div class="sub">Dati scannerv2: linea prezzo, KAMA arancio, punti = cambi di segnale (BUY1/2/3, SELL, WATCH). Non è un grafico heikin ashi: il file scannerv2 contiene solo le chiusure.</div>`}
+function xl(){const o=D,rows=[['Ticker',o.ticker],['ISIN',o.isin],['Nome',o.nome],['Borsa',o.borsa],['Ultima barra',o.ultima],['Dati generati',o.generato],['Prezzo',o.prezzo],['Var %',o.var_pct],['Apertura',o.apertura],['Min gg',o.min_gg],['Max gg',o.max_gg],
+ ['Stato',o.stato&&o.stato.stato],['Segnale core',o.stato&&o.stato.core],['Segnale dal',o.stato&&o.stato.dal],['Stop',o.stato&&o.stato.stop],['Target',o.stato&&o.stato.target],
+ ['Tendenza breve',o.tend.breve],['Tendenza media',o.tend.medio],['Tendenza lunga',o.tend.lungo],
+ ['Range 5gg 90% giù',o.range5&&o.range5.p90[0]],['Range 5gg 68% giù',o.range5&&o.range5.p68[0]],['Range 5gg 68% su',o.range5&&o.range5.p68[1]],['Range 5gg 90% su',o.range5&&o.range5.p90[1]],
+ ['Pivot S2',o.pivot[1]],['Pivot S1',o.pivot[2]],['Pivot',o.pivot[3]],['Pivot R1',o.pivot[4]],['Pivot R2',o.pivot[5]],
+ ['Volume medio 5',o.stats.vm[0]],['Volume medio 21',o.stats.vm[1]],['Rapporto volumi',o.stats.vm[2]],['Var % 1gg',o.stats.var[0]],['Var % 5gg',o.stats.var[1]],['Var % 21gg',o.stats.var[2]],
+ ['Volatilità 5gg %',o.stats.vol[0]],['Volatilità 10gg %',o.stats.vol[1]],['Volatilità 21gg %',o.stats.vol[2]],['RSI(14)',o.ind.rsi],['Stocastico(3,5)',o.ind.stoch],['Divergenza',o.divergenza||''],['Candele',o.candele.join(', ')],['Commento',o.commento]];
+ const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Campo','Valore'],...rows]),'Scheda');XLSX.writeFile(wb,'scheda_'+o.ticker.replace(/\./g,'_')+'.xlsx')}
+async function pdf(){const r=await(await fetch('regole_analisi.json?t='+Date.now())).json(),p=new jspdf.jsPDF(),M=15,Wd=180;let y=20;
+ const need=h=>{if(y+h>285){p.addPage();y=20}};p.setFontSize(15);p.text('Regole della scheda analisi (v'+r.versione+', '+r.aggiornato+')',M,y);y+=10;
+ r.regole.forEach(([t,x])=>{p.setFontSize(11);p.setFont(undefined,'bold');need(8);p.text(t,M,y);y+=5.5;p.setFont(undefined,'normal');p.setFontSize(10);const L=p.splitTextToSize(x,Wd);need(L.length*5);p.text(L,M,y);y+=L.length*5+3});p.save('regole_scheda_analisi.pdf')}
+</script></body></html>
