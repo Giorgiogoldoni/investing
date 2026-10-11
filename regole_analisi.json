@@ -1,0 +1,70 @@
+{
+ "versione": "1.0",
+ "aggiornato": "2026-10-11",
+ "regole": [
+  [
+   "Natura della scheda",
+   "Lettura tecnica a regole PROPRIE. Non replica Fineco/Wavenure ne' Investing.com e non e' una raccomandazione. Nessun edge dimostrato: sul backtest di core nessun filtro ha portato a ingressi quasi sicuri (vincenti 37-46%)."
+  ],
+  [
+   "Dati",
+   "Barre giornaliere Yahoo Finance (2 anni), non adjusted. La data dell'ultima barra e' sempre mostrata; se piu' vecchia dell'ultima seduta di borsa compare un avviso."
+  ],
+  [
+   "Segnale e stato",
+   "Dal segnale del motore di core (BUY1/2/3, EXIT, WATCH...), con la data da cui vale. Stato: Acquisto (nuovo se <=3 barre), Uscita/non in posizione, Neutrale."
+  ],
+  [
+   "Stop e target",
+   "Solo con segnale BUY: stop = chiusura - 2 x ATR(14); target = chiusura + 3 x ATR(14) (rischio/rendimento 1:1,5). Livelli indicativi, non ordini."
+  ],
+  [
+   "Tendenza",
+   "Breve (5 barre): prezzo sopra/sotto la media a 5 e media in salita/discesa su 2 barre. Medio (21 barre, su 5). Lungo (63 barre, su 10). Altrimenti Laterale."
+  ],
+  [
+   "Range a 5 giorni",
+   "Chiusura +/- z x dev. std. giornaliera a 63 barre x radice di 5; z=1,0 (68%) e 1,645 (90%). Sui dati del repo la copertura storica e' ~70% e ~89%: indicativa, osservazioni sovrapposte."
+  ],
+  [
+   "Supporti e resistenze",
+   "Pivot classico dalla barra piu' recente: S1, S2, Pivot, R1, R2."
+  ],
+  [
+   "Volumi, variazioni, volatilita'",
+   "Volumi medi a 5 e 21 giorni e rapporto. Variaz.% a 1, 5, 21 giorni (verificate su un ETF, coincidono con Fineco). Volatilita' annualizzata (dev. std. rendimenti x radice di 252) a 5, 10, 21 giorni: puo' differire di 1-2 punti da Fineco."
+  ],
+  [
+   "Volumi non significativi",
+   "Se il controvalore medio a 20 giorni e' sotto 50.000 euro i volumi non sono usati nel commento (volumi di una sola sede, rumorosi sugli ETF)."
+  ],
+  [
+   "RSI e stocastico",
+   "RSI(14) di Wilder. Stocastico (3,5): %K su 3 barre, media semplice a 5. Ipercomprato: RSI>70 o stocastico>80; ipervenduto: RSI<30 o stocastico<20."
+  ],
+  [
+   "Divergenze",
+   "Ultime 40 barre, swing a 2 barre: prezzo massimo piu' alto con RSI piu' basso = ribassista; minimo piu' basso con RSI piu' alto = rialzista. Valida se l'ultimo swing e' di non oltre 5 barre fa."
+  ],
+  [
+   "Candele",
+   "Ultime 3 barre: doji, marubozu, martello/hanging man, shooting star, spinning top, candela lunga, engulfing, chiusura sul minimo/massimo. Valore predittivo debole."
+  ],
+  [
+   "Commento",
+   "Generato da regole. Se due letture sono in conflitto (es. acquisto con ipercomprato, trend lungo e breve opposti) il testo lo dichiara."
+  ],
+  [
+   "Grafico",
+   "Componente scannerv2: legge data/charts/TICKER.json di scannerv2 (prezzo, KAMA, segnali, AO, RSI). Esiste solo per i ticker dell'universo scannerv2; altrimenti link a TradingView."
+  ],
+  [
+   "Link",
+   "TradingView con suffisso borsa (.MI=MIL, .DE=XETR, .PA=EURONEXT, .L=LSE). Investing.com: indirizzo diretto da investing_map.json, altrimenti ricerca per ISIN."
+  ],
+  [
+   "Aggiornamento",
+   "Workflow 'Scheda analisi' (fin.yml), manuale o lun-ven 17:25 UTC. Regole aggiornate in regole_analisi.json."
+  ]
+ ]
+}
