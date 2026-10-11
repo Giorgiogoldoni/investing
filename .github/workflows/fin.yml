@@ -1,0 +1,49 @@
+name: Scheda analisi
+on:
+  workflow_dispatch:
+    inputs:
+      tickers: {description: "Ticker yfinance separati da virgola (vuoto = tutto core)", default: ""}
+  schedule: [{cron: "25 17 * * 1-5"}]
+permissions: {contents: write}
+concurrency: {group: scheda-analisi, cancel-in-progress: false}
+jobs:
+  calcola:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix: {shard: [0, 1, 2, 3, 4, 5, 6, 7]}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with: {repository: Giorgiogoldoni/core, path: core}
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install yfinance pandas numpy
+      - run: rm -rf data/fin data/fin_parts
+      - run: python scripts/compute_fin.py "${{ github.event.inputs.tickers }}"
+        env: {SHARD: "${{ matrix.shard }}/8"}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fin-shard-${{ matrix.shard }}
+          path: |
+            data/fin
+            data/fin_parts
+          if-no-files-found: ignore
+  unisci:
+    needs: calcola
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: rm -rf data/fin data/fin_parts
+      - uses: actions/download-artifact@v4
+        with: {pattern: "fin-shard-*", merge-multiple: true, path: data}
+      - run: pip install pandas numpy yfinance && python scripts/compute_fin.py --merge
+      - run: |
+          rm -rf data/fin_parts
+          git config user.name "github-actions"; git config user.email "actions@github.com"
+          git add -A data/fin
+          git diff --staged --quiet || (git commit -m "Aggiornamento scheda analisi" && git pull --rebase origin ${{ github.ref_name }} && git push)
