@@ -1,6 +1,6 @@
 {
- "versione": "1.0",
- "aggiornato": "2026-10-11",
+ "versione": "1.1",
+ "aggiornato": "2026-10-12",
  "regole": [
   [
    "Natura della scheda",
@@ -9,6 +9,10 @@
   [
    "Dati",
    "Barre giornaliere Yahoo Finance (2 anni), non adjusted. La data dell'ultima barra e' sempre mostrata; se piu' vecchia dell'ultima seduta di borsa compare un avviso."
+  ],
+  [
+   "Barre senza scambi",
+   "Le barre piatte senza scambi (volume 0 e massimo uguale a minimo, tipiche di Yahoo nei giorni senza contrattazioni) vengono scartate prima di ogni calcolo. Se l'ultima barra e' piatta la scheda lo dice e usa la seduta precedente. Con almeno 5 giorni senza scambi nelle ultime 20 sedute l'ETF e' segnalato come poco scambiato."
   ],
   [
    "Segnale e stato",
