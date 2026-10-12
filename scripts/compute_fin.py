@@ -13,6 +13,13 @@ def trend(c, p, lag):
     up = c.iloc[-1] > sm.iloc[-1] and sm.iloc[-1] > sm.iloc[-1 - lag]; dn = c.iloc[-1] < sm.iloc[-1] and sm.iloc[-1] < sm.iloc[-1 - lag]
     return "Su" if up else "Giu" if dn else "Laterale"
 
+def pulisci(d):
+    """Toglie le barre piatte senza scambi: Yahoo ripete l'ultima chiusura nei giorni senza contrattazioni e falsa RSI, stocastico e pivot.
+    Ritorna (d_pulito, giorni_senza_scambi_nelle_ultime_20_barre, ultima_barra_grezza_piatta)."""
+    if "Volume" not in d: return d, 0, False
+    v = d.Volume.fillna(0); piatta = (v == 0) & (d.High == d.Low)
+    return d[~piatta], int((v.iloc[-20:] == 0).sum()), bool(piatta.iloc[-1])
+
 def stats(d):
     c = d.Close; r = c.pct_change(); v = d.Volume if "Volume" in d else None
     var = [f((c.iloc[-1] / c.iloc[-1 - k] - 1) * 100, 3) if len(c) > k else None for k in (1, 5, 21)]
@@ -88,6 +95,7 @@ def it(x, d=2): return f"{x:.{d}f}".replace(".", ",")
 def commento(o):
     """Commento a regole; se due letture sono in conflitto lo dice invece di scegliere."""
     s, p = [], o["prezzo"]; v = o["var_pct"]; ind = o["ind"]; tr = o["tend"]
+    if o.get("senza_scambi_ultima"): s.append(f"Nota: l'ultima barra ({o['ultima_raw']}) è senza scambi, quindi i calcoli usano la seduta del {o['ultima']}.")
     s.append(f"Seduta {'positiva' if v > 0 else 'negativa' if v < 0 else 'invariata'} ({it(v)}%), chiusura a {it(p, 3)} (barra del {o['ultima']}).")
     if o["candele"]: s.append("Candela: " + o["candele"][0] + ".")
     if o["stats"]["vm_ok"] and o["stats"]["vm"][2]: s.append("Volumi " + ("in aumento" if o["stats"]["vm"][2] > 1.1 else "in calo" if o["stats"]["vm"][2] < 0.9 else "stabili") + " rispetto alla media a 21 giorni.")
@@ -111,14 +119,15 @@ def commento(o):
     s.append("Lettura indicativa a regole proprie, non una raccomandazione.")
     return " ".join(s)
 
-def build(t, d, U, ok):
+def build(t, d, U, ok, raw_last=None, zv=0, pf=False):
     c = d.Close; u = U.get(t, {}); last, prev = d.iloc[-1], d.iloc[-2]; a = atr(d); x = T.calc(d)
     ind = {i["nome"]: i["valore"] for i in x["indicatori"]} if x else {}
     o = {"ticker": t, "isin": u.get("isin"), "nome": u.get("name", t), "borsa": "Borsa Italiana" if t.endswith(".MI") else "Xetra" if t.endswith(".DE") else t.split(".")[-1], "valuta": "EUR",
-         "ultima": str(d.index[-1].date()), "aggiornato": ok, "generato": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+         "ultima": str(d.index[-1].date()), "ultima_raw": raw_last or str(d.index[-1].date()), "senza_scambi_ultima": pf, "zv20": zv, "aggiornato": ok, "generato": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
          "prezzo": f(last.Close, 3), "var": f(last.Close - prev.Close, 3), "var_pct": f((last.Close / prev.Close - 1) * 100, 2), "apertura": f(last.Open, 3), "min_gg": f(last.Low, 3), "max_gg": f(last.High, 3),
          "tend": {"breve": trend(c, 5, 2), "medio": trend(c, 21, 5), "lungo": trend(c, 63, 10)}, "stats": stats(d), "range5": range5(c), "pivot": T.pivots(d)["Classico"],
          "ind": {"rsi": ind.get("RSI(14)"), "stoch": stoch35(d)}, "divergenza": divergenza(d), "candele": candele(d), "stato": stato(T.core_sig(d), None, c, a), "atr": f(a, 4)}
+    o["stats"]["vm_ok"] = bool(o["stats"]["vm_ok"] and zv < 5); o["poco_scambiato"] = not o["stats"]["vm_ok"]
     o["commento"] = commento(o); return o
 
 def run(ts, tag):
@@ -127,9 +136,15 @@ def run(ts, tag):
         try:
             d = yf.Ticker(t).history(period="2y", interval="1d", auto_adjust=False).dropna(subset=["Close"])
             if len(d) < 70: fails.append({"ticker": t, "motivo": f"storia insufficiente ({len(d)})"}); continue
-            d.index = d.index.tz_localize(None); d, ok = T.recent(t, d); o = build(t, d, U, ok)
+            d.index = d.index.tz_localize(None); d, ok = T.recent(t, d); raw_last = str(d.index[-1].date()); d, zv, pf = pulisci(d)
+            if len(d) < 70: fails.append({"ticker": t, "motivo": f"storia insufficiente dopo pulizia ({len(d)})"}); continue
+            o = build(t, d, U, ok, raw_last, zv, pf)
             json.dump(o, open(f"{OUT}/{t.replace('.', '_')}.json", "w"), ensure_ascii=False, allow_nan=False)
-            res.append({"ticker": t, "isin": o["isin"], "nome": o["nome"], "borsa": o["borsa"], "ultima": o["ultima"], "agg": ok}); print("OK", t)
+            st = o["stato"]; tr = o["tend"]; L = lambda x: x[0] if x else None
+            res.append({"ticker": t, "isin": o["isin"], "nome": o["nome"], "borsa": o["borsa"], "ultima": o["ultima"], "agg": ok,
+                        "st": None if not st else "A" if st["stato"].startswith("Acquisto") else "U" if st["stato"].startswith("Uscita") else "N",
+                        "stn": 1 if st and "(nuovo)" in st["stato"] else 0, "tb": L(tr["breve"]), "tm": L(tr["medio"]), "tl": L(tr["lungo"]),
+                        "pf": int(pf), "zv": zv, "core": st and st["core"], "dal": st and st["dal"]}); print("OK", t)
         except Exception as e: print("ERR", t, repr(e)[:100]); fails.append({"ticker": t, "motivo": repr(e)[:120]})
         time.sleep(0.5)
     json.dump(res, open(f"{PARTS}/part_{tag}.json", "w"), ensure_ascii=False); json.dump(fails, open(f"{PARTS}/falliti_{tag}.json", "w"), ensure_ascii=False)
