@@ -19,13 +19,13 @@ table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,t
 <script>
 const q=new URLSearchParams(location.search),T=q.get('y');
 const TVS={MI:'MIL',DE:'XETR',PA:'EURONEXT',L:'LSE'};
-const n=(v,d=2)=>v==null?'–':Number(v).toLocaleString('it-IT',{minimumFractionDigits:d,maximumFractionDigits:d});
+const n=(v,d=2)=>{if(v==null)return '–';const [i,f]=Number(v).toLocaleString('it-IT',{minimumFractionDigits:d,maximumFractionDigits:d,useGrouping:false}).split(',');const g=i.replace(/\B(?=(\d{3})+(?!\d))/g,'.');return f?g+','+f:g};
 const fl=v=>v==null?'–':v;let D,IM={},IDX=null;
 const tvu=t=>{const ex=t.split('.').pop(),sy=t.split('.')[0];return 'https://it.tradingview.com/chart/?symbol='+encodeURIComponent((TVS[ex]||ex)+':'+sy)};
 const inv=o=>IM[o.ticker]||'https://it.investing.com/search/?q='+encodeURIComponent(o.isin||o.ticker.split('.')[0]);
 const arrow={Su:'▲ Su',Giu:'▼ Giù',Laterale:'= Laterale'};
 const cls=s=>s&&s.startsWith('Acquisto')?'Acq':s&&s.startsWith('Uscita')?'Usc':'Neu';
-const stale=()=>{const l=new Date(D.ultima+'T00:00:00Z'),a=new Date();a.setUTCDate(a.getUTCDate()-(a.getUTCHours()<17?1:0));while([0,6].includes(a.getUTCDay()))a.setUTCDate(a.getUTCDate()-1);return l<new Date(a.toISOString().slice(0,10)+'T00:00:00Z')};
+const stale=()=>{const l=new Date((D.ultima_raw||D.ultima)+'T00:00:00Z'),a=new Date();a.setUTCDate(a.getUTCDate()-(a.getUTCHours()<17?1:0));while([0,6].includes(a.getUTCDay()))a.setUTCDate(a.getUTCDate()-1);return l<new Date(a.toISOString().slice(0,10)+'T00:00:00Z')};
 Promise.all([fetch('investing_map.json').then(r=>r.ok?r.json():{}).catch(()=>({})),fetch('data/fin/index.json?t='+Date.now()).then(r=>r.json()).catch(()=>null)]).then(([m,i])=>{IM=m;IDX=i;start()});
 function start(){
  if(!T){home();return}
@@ -41,18 +41,18 @@ function draw(){
  let h=`<div class="top"><div><h1>${D.nome}</h1><div class="sub">${D.ticker} · ${D.borsa} · ${D.valuta}${D.isin?' · '+D.isin:''}</div>
  <div class="sub">Ultima barra <b>${D.ultima}</b> · dati generati ${D.generato}</div></div>
  <div><div class="px">${n(D.prezzo)}</div><div style="color:${up?'var(--up)':'var(--dn)'}">${up?'+':''}${n(D.var)} (${up?'+':''}${n(D.var_pct)}%)</div></div></div>
- ${stale()||!D.aggiornato?`<div class="box warn"><b>Attenzione:</b> l'ultima barra (${D.ultima}) è più vecchia dell'ultima seduta di borsa. I valori non includono la seduta più recente.</div>`:''}
+ ${stale()||!D.aggiornato?`<div class="box warn"><b>Attenzione:</b> l'ultima barra (${D.ultima_raw||D.ultima}) è più vecchia dell'ultima seduta di borsa. I valori non includono la seduta più recente.</div>`:''}
+ ${D.senza_scambi_ultima?`<div class="box"><b>Nota:</b> la barra del ${D.ultima_raw} è senza scambi (Yahoo ripete la chiusura precedente). I calcoli usano la seduta del <b>${D.ultima}</b>.</div>`:''}
  <div class="bar"><button onclick="xl()">Scarica Excel</button><button onclick="pdf()">Regole PDF</button><a class="btn" target="_blank" rel="noopener" href="${tvu(D.ticker)}">TradingView</a><a class="btn" target="_blank" rel="noopener" href="${inv(D)}">Investing</a><a class="btn" href="index.html">Torna a investing</a><a class="btn" href="analisi.html">Altra ricerca</a></div>
  <h2>Segnale (nostro metodo)</h2>${st?`<span class="big ${cls(st.stato)}">${st.stato}</span> <span class="sub">segnale core ${st.core} dal ${st.dal} (${st.barre} barre)${st.stop!=null?` · stop ${n(st.stop,3)} · target ${n(st.target,3)} · al prezzo di chiusura ${n(D.prezzo,3)}`:' · nessuno stop/target: non in posizione'}</span>`:'<span class="sub">Segnale core non disponibile.</span>'}
  <h2>Tendenza</h2><div class="grid">${[['Breve (5 barre)',tr.breve],['Medio (21 barre)',tr.medio],['Lungo (63 barre)',tr.lungo]].map(([l,v])=>`<div class="box"><div class="k">${l}</div><span class="big ${v||'Laterale'}">${v?arrow[v]:'n.d.'}</span></div>`).join('')}</div>
  <h2>Range a 5 giorni e livelli</h2><div class="wrap"><table><tr><th></th><th>2° Sup / 90% giù</th><th>1° Sup / 68% giù</th><th>Prezzo</th><th>1ª Res / 68% su</th><th>2ª Res / 90% su</th></tr>
  <tr><td>Range 5 gg (deviazione standard)</td><td>${r?n(r.p90[0],3):'–'}</td><td>${r?n(r.p68[0],3):'–'}</td><td><b>${n(D.prezzo,3)}</b></td><td>${r?n(r.p68[1],3):'–'}</td><td>${r?n(r.p90[1],3):'–'}</td></tr>
  <tr><td>Pivot classico</td><td>${n(pv[1],3)}</td><td>${n(pv[2],3)}</td><td>${n(pv[3],3)}</td><td>${n(pv[4],3)}</td><td>${n(pv[5],3)}</td></tr></table></div>
- <h2>Volumi, variazioni, volatilità</h2><div class="wrap"><table><tr><th></th><th>5</th><th>10 / 21</th><th>21 / rapporto</th></tr>
- <tr><td>Volumi medi (5, 21, rapporto)</td><td>${n(vm[0],0)}</td><td>${n(vm[1],0)}</td><td>${n(vm[2],3)}</td></tr>
- <tr><td>Variaz.% (1, 5, 21 giorni)</td><td>${n(s.var[0],3)}</td><td>${n(s.var[1],3)}</td><td>${n(s.var[2],3)}</td></tr>
- <tr><td>Volatilità annualizzata % (5, 10, 21)</td><td>${n(s.vol[0],3)}</td><td>${n(s.vol[1],3)}</td><td>${n(s.vol[2],3)}</td></tr></table></div>
- ${s.vm_ok?'':'<div class="box warn">Volumi troppo bassi per essere significativi: non sono usati nel commento.</div>'}
+ <h2>Volumi, variazioni, volatilità</h2><div class="wrap"><table><tr><th>Volumi medi</th><th>5 gg</th><th>21 gg</th><th>Rapporto 5/21</th></tr><tr><td>Azioni scambiate</td><td>${n(vm[0],0)}</td><td>${n(vm[1],0)}</td><td>${n(vm[2],3)}</td></tr></table>
+ <table style="margin-top:8px"><tr><th>Variazione %</th><th>1 gg</th><th>5 gg</th><th>21 gg</th></tr><tr><td>Prezzo</td><td>${n(s.var[0],3)}</td><td>${n(s.var[1],3)}</td><td>${n(s.var[2],3)}</td></tr></table>
+ <table style="margin-top:8px"><tr><th>Volatilità annualizzata %</th><th>5 gg</th><th>10 gg</th><th>21 gg</th></tr><tr><td>Dev. std. rendimenti</td><td>${n(s.vol[0],3)}</td><td>${n(s.vol[1],3)}</td><td>${n(s.vol[2],3)}</td></tr></table></div>
+ ${D.poco_scambiato?`<div class="box warn">ETF poco scambiato${D.zv20!=null?` (${D.zv20} giorni senza scambi nelle ultime 20 sedute)`:''}: volumi non significativi e livelli, pivot e oscillatori da leggere con cautela${D.ind.stoch==null?'. Stocastico non calcolabile: barre piatte':''}.</div>`:''}
  <h2>Oscillatori, divergenze, candele</h2><div class="box">RSI(14): <b>${n(D.ind.rsi,1)}</b> · Stocastico (3,5): <b>${n(D.ind.stoch,1)}</b><br>Divergenza (5 gg max): <b>${D.divergenza||'nessuna individuata'}</b><br>Candele (3 gg max): <b>${D.candele.length?D.candele.join(', '):'nessuna formazione rilevante'}</b></div>
  <h2>Commento</h2><div class="box">${D.commento}</div>
  <h2>Grafico</h2><div id="gr" class="box sub">Caricamento grafico scannerv2…</div>
