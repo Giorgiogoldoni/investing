@@ -1,6 +1,6 @@
 {
- "versione": "1.0",
- "aggiornato": "2026-10-10",
+ "versione": "1.1",
+ "aggiornato": "2026-10-12",
  "soglie": {
   "rsi": [
    45,
@@ -89,6 +89,18 @@
   [
    "Segnale core",
    "Segnale del motore di core (BUY1, BUY2, BUY3, EXIT1, EXIT2, MEAN REV, WATCH) calcolato con lo stesso codice di core sui prezzi giornalieri di questa pagina (ultimi 2 anni). E' un segnale diverso dal consenso degli indicatori: le due letture possono non coincidere."
+  ],
+  [
+   "Colonne Scheda, Stato e Trend",
+   "Scheda: icona che apre la scheda analisi dello strumento. Stato: Acquisto / Acq. nuovo (segnale BUY da 3 barre o meno) / Uscita / Neutrale, dal segnale core calcolato dalla scheda sulle barre con scambi. Trend: tre frecce per breve (5 barre), medio (21), lungo (63): ▲ su, ▼ giù, = laterale. I dati vengono dal workflow 'Scheda analisi', che può avere data diversa da questa tabella: lo stato può differire dal Segnale core della tabella."
+  ],
+  [
+   "Simbolo ⚠ (barre senza scambi)",
+   "Compare se l'ultima barra di Yahoo è piatta e senza scambi (Yahoo ripete la chiusura precedente) o se nelle ultime 20 sedute i giorni senza scambi sono almeno 10. In quei casi gli indicatori della tabella e della scheda sono poco affidabili. La scheda scarta le barre piatte senza scambi; questa tabella no."
+  ],
+  [
+   "Vista su telefono",
+   "Sotto 720 pixel di larghezza la tabella diventa un elenco di schede: ticker, collegamenti, nome, prezzo, variazione, stato e trend. Un tocco apre i dettagli (emittente, esposizione, G/S/M, scambi, ISIN)."
   ],
   [
    "Esposizione",
